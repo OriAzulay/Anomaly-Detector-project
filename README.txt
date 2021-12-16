@@ -13,3 +13,8 @@ More similar (when one rises or falls the other rises or falls respectively).
 The variables behave in the opposite direction (when one goes up, the other goes down). In both cases there is a very correlation
 strong. In contrast, the closer the value is to 0 the greater the lack of connection in the bio variables.
 - 'linear_reg' return the linear equation
+
+******* TimeSeries ******************
+Thie time series is a method that gets a CSV of flights data features as flight time, altitude, speed, and heading by degree
+and keep the data with convenient data structure as a vector with column name as string key & column list as the value
+
