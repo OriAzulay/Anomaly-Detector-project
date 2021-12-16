@@ -19,7 +19,7 @@ Thie time series is a method that gets a CSV of flights data features as flight 
 and keep the data with convenient data structure as a vector with column name as string key & column list as the value
 
 ******* Simple Anomaly Detection *********
-This file is divided into 2 :
+This file is seperate into 2 :
 The first part is by the method 'learnNormal' - a method that gets time series  - data of flight features
 and she checks every 2 columns if there is a correlation anomaly between 2 features - a value greater than a given threshold.
 if there is, it saves it into correlationFeature vector by the names of both features and columns, the correlation,
