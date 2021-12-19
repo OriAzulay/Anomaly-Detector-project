@@ -27,3 +27,14 @@ the threshold, center between both of the features points.
 this part is a method for learning the threshold and values we want to get
 The second part is to check a real anomaly detection - where we receive a real CSV file and we check if there is 
 a correlation by the values we mentioned before.
+
+******* minimum circle detection ***********
+
+In the simple detector, we assumed that there are linear correlations between variables, and using linear regression we chose to predict
+The expected value. When the observed value was different from the expected one we declared an exception.
+However, not in every domain can we assume these assumptions. For example, as in the following diagrams.
+In such cases, we would like to efficiently find the circle with the radius
+The minimum that contains all the points (considered normal) (i.e. find the
+The center of the circle and its radius.
+Thus, given a new point we can measure its distance from the center of the circle, and if
+It is larger than its radius so we will declare an exception
