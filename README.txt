@@ -29,7 +29,6 @@ The second part is to check a real anomaly detection - where we receive a real C
 a correlation by the values we mentioned before.
 
 ******* minimum circle detection ***********
-
 In the simple detector, we assumed that there are linear correlations between variables, and using linear regression we chose to predict
 The expected value. When the observed value was different from the expected one we declared an exception.
 However, not in every domain can we assume these assumptions. For example, as in the following diagrams.
@@ -38,3 +37,7 @@ The minimum that contains all the points (considered normal) (i.e. find the
 The center of the circle and its radius.
 Thus, given a new point we can measure its distance from the center of the circle, and if
 It is larger than its radius so we will declare an exception
+
+******* Hybrid detection ***********
+when we are making anolay detection we want to keep the code generic as possible, therefore we manage the anomaly detectoion by an hybrid that 
+check the anomlay by points with minimum circle detection or by CSV files by simple anomaly detector
