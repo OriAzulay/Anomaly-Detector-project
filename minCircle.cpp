@@ -7,6 +7,7 @@
 
 using namespace std;
 
+// Distance between 2 points a,b
 float distance(const Point &a, const Point &b)
 {
     return sqrt(pow(a.x - b.x, 2) + pow(a.y - b.y, 2));
@@ -15,7 +16,7 @@ float distance(const Point &a, const Point &b)
 bool PointInCircle(const Circle &c, const Point &p)
 {
     // if the distance between center and point greater then the raduis, the p is outside
-    return distance(c.center, p) <= c.radius;
+    return (distance(c.center, p) <= c.radius);
 }
 
 Point getCenter(float ax, float ay, float bx, float by)
@@ -29,6 +30,7 @@ Point getCenter(float ax, float ay, float bx, float by)
     return Point(X, Y);
 }
 
+// Make a circle from 2 given points (diameter is the distance)
 Circle CircleBy2Points(const Point &A, const Point &B)
 {
     // Set the center to be the midpoint of A and B
@@ -73,19 +75,30 @@ Circle trivialCircle(vector<Point> &Bdr)
     {
         return CircleBy2Points(Bdr[0], Bdr[1]);
     }
+    // check if the smallest circle determined by 2 points
+    Circle c = CircleBy2Points(Bdr[0], Bdr[1]);
+    if (distance(Bdr[2], c.center) <= c.radius)
+        return c;
+    c = CircleBy2Points(Bdr[0], Bdr[2]);
+    if (distance(Bdr[1], c.center) <= c.radius)
+        return c;
+    c = CircleBy2Points(Bdr[1], Bdr[2]);
+    if (distance(Bdr[0], c.center) <= c.radius)
+        return c;
 
     // check if the smallest circle determined by 2 points
-    for (int i = 0; i < 3; i++)
-    {
-        for (int j = i + 1; j < 3; j++)
-        {
-            Circle c = CircleBy2Points(Bdr[i], Bdr[j]);
-            if (CircleCheck(c, Bdr))
-            {
-                return c;
-            }
-        }
-    }
+    // for (int i = 0; i < 3; i++)
+    // {
+    //     for (int j = i + 1; j < 3; j++)
+    //     {
+    //         //check for circle(point[0],1), circle(point[1],2), circle(point[1],2)
+    //         Circle c = CircleBy2Points(Bdr[i], Bdr[j]);
+    //         if (CircleCheck(c, Bdr))
+    //         {
+    //             return c;
+    //         }
+    //     }
+    // }
 
     return CircleBy3Points(Bdr[0], Bdr[1], Bdr[2]);
 }
