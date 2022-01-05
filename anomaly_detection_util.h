@@ -39,19 +39,20 @@ float pearson(float *x, float *y, int size);
 class Line
 {
 public:
-	const float a, b;
-	Line(float a, float b) : a(a), b(b) {}
-	float f(float x)
-	{
-		return a * x + b;
-	}
+    float a, b;
+    Line() : a(0), b(0) {} // defualt constructor
+    Line(float a, float b) : a(a), b(b) {}
+    float f(float x)
+    {
+        return a * x + b;
+    }
 };
 
 class Point
 {
 public:
-	const float x, y;
-	Point(float x, float y) : x(x), y(y) {}
+    float x, y;
+    Point(float x, float y) : x(x), y(y) {}
 };
 
 // performs a linear regression and returns the line equation

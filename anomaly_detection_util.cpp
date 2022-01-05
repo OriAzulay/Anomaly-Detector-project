@@ -1,9 +1,3 @@
-/**
- * Author: Ori Azualy
- * Implementaion for anomaly detection based on statisticall methods
- *
- **/
-
 #include <cmath>
 #include "anomaly_detection_util.h"
 
@@ -60,7 +54,7 @@ float cov(float *x, float *y, int size)
             covSum += x[i] * y[i];
         }
         covSum = covSum / size;
-        return covSum - (avg(x, size) * avg(y, size));
+        return covSum - (avg(x, size) * avg(y, size)); // can give negative value
     }
     return 0;
 }
@@ -87,7 +81,7 @@ float pearson(float *x, float *y, int size)
  */
 Line linear_reg(Point **points, int size)
 {
-    // create arrays of x values and y valuse of the points
+    // create arrays of x values and y values of the points
     float x_from_p[size];
     float y_from_p[size];
     for (int i = 0; i < size; i++)
@@ -111,7 +105,7 @@ Line linear_reg(Point **points, int size)
 float dev(Point p, Point **points, int size)
 {
     Line ln = linear_reg(points, size);
-    return std::abs(ln.f(p.x) - p.y);
+    return std::abs(p.y - ln.f(p.x));
 }
 
 /**
@@ -122,5 +116,5 @@ float dev(Point p, Point **points, int size)
  */
 float dev(Point p, Line l)
 {
-    return std::abs(l.f(p.x) - p.y);
+    return std::abs(p.y - l.f(p.x));
 }

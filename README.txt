@@ -41,3 +41,12 @@ It is larger than its radius so we will declare an exception
 ******* Hybrid detection ***********
 when we are making anolay detection we want to keep the code generic as possible, therefore we manage the anomaly detectoion by an hybrid that 
 check the anomlay by points with minimum circle detection or by CSV files by simple anomaly detector
+
+******** Client - Server ***********
+At this point we want our server to have an Interface Line Command (CLI). That is when a client logs in,
+Textual menus are sent by the server and through which the interaction between the server and the client will take place.
+The client will be able to upload to the server a CSV file, update parameters of the algorithm and get back an anomaly report detected.
+In addition, the customer will be able to enter where the actual anomalies occurred and get an analysis of the accuracy of the algorithm on the data
+Who sent.
+Our server will have to handle multiple clients simultaneously and we will even have to limit this amount so that the server does not
+Will collapse as a result of a load.
