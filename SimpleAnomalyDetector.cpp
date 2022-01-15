@@ -1,4 +1,4 @@
-
+//ID : 206336794
 #include "SimpleAnomalyDetector.h"
 #include <iostream>
 #include <algorithm>
@@ -14,27 +14,26 @@ SimpleAnomalyDetector::~SimpleAnomalyDetector()
 
 // ------helping methods----------
 // create Point from list of floats
-Point **SimpleAnomalyDetector::toPoint(float *X, float *Y, size_t N)
-{
-    Point **ps = new Point *[N];
-    for (int t = 0; t < N; t++)
-    {
-        ps[t] = new Point(X[t], Y[t]); // point (x,y)
-    }
-    return ps;
+Point** SimpleAnomalyDetector::toPoints(vector<float> x, vector<float> y){
+	Point** ps=new Point*[x.size()];
+	for(size_t i=0;i<x.size();i++){
+		ps[i]=new Point(x[i],y[i]);
+	}
+	return ps;
 }
 
 // Method to save the correlated feature and push to the cf
-void SimpleAnomalyDetector::CorrelatedInit(float max, string f1, string f2, Point **p, int N)
+void SimpleAnomalyDetector::CorrelatedInit(float max, string f1, string f2, Point **p, const TimeSeries& ts)
 {
     correlatedFeatures Cpair;
     Cpair.corrlation = max;
     Cpair.feature1 = f1;
     Cpair.feature2 = f2;
-    Line l = linear_reg(p, N);
+    Line l = linear_reg(p, ts.getFeaturesData(f1).size());
     Cpair.lin_reg = l;
     float maxDev = 0;
-    for (int s = 0; s < N; s++)
+    //find threshhold
+    for (int s = 0; s < ts.getFeaturesData(f1).size(); s++)
     {
         if (maxDev < dev(*(p[s]), l))
         {
@@ -43,24 +42,6 @@ void SimpleAnomalyDetector::CorrelatedInit(float max, string f1, string f2, Poin
         Cpair.threshold = maxDev * 1.1;
     }
     cf.push_back(Cpair);
-}
-
-// A method to delete all the duplicated corrolation features check.
-void SimpleAnomalyDetector::duplicateRemove()
-{
-    int count = 0;
-    for (correlatedFeatures cl : cf)
-    {
-        for (int k = count; k < cf.size(); k++)
-        {
-            if ((cl.feature1 == cf.at(k).feature2) && (cl.feature2 == cf.at(k).feature1))
-            {
-                cf.erase(cf.begin() + k);
-                continue;
-            }
-        }
-        count++;
-    }
 }
 
 //--------------------------------
@@ -73,55 +54,40 @@ void SimpleAnomalyDetector::duplicateRemove()
  */
 void SimpleAnomalyDetector::learnNormal(const TimeSeries &ts)
 {
-    TimeSeries t = ts;
-    size_t len = t.getVector().at(0).second.size();
-    float tempF1[len];
-    float tempF2[len];
-    correlatedFeatures Cpair;
-    int itr = t.getVector().size();             // iterator
-    int N = sizeof(tempF1) / sizeof(tempF1[1]); // size of table's columns
-    while (itr != 0)
-    {
-        // for loop to run with every feature over the whole Table
-        //  if it gets the most corrolated, save it in Cpair and push cf
-        for (int i = 0; i < t.getVector().size(); i++)
-        {
-            float maxC = 0;
-            string f1;
-            string f2;
-            Point **ps;
-            for (int j = 0; j < t.getVector().size(); j++)
-            {
-                // skip on equal features check like A-A
-                if (t.getVector().at(i).first == t.getVector().at(j).first)
-                {
-                    continue;
-                }
-                // turn vector to float
-                for (int k = 0; k < len; k++)
-                {
-                    tempF1[k] = t.getVector().at(i).second[k];
-                    tempF2[k] = t.getVector().at(j).second[k];
-                }
-                // initial the maximun correlation at cf -> a correlation vector
-                if (maxC < abs(pearson(tempF1, tempF2, N)))
-                {
-                    maxC = abs(pearson(tempF1, tempF2, N));
-                    f1 = t.getVector().at(i).first;
-                    f2 = t.getVector().at(j).first;
-                    ps = toPoint(tempF1, tempF2, len);
-                }
-            }
-            // The initial part
-            CorrelatedInit(maxC, f1, f2, ps, N);
-            itr--;
-            // delete the points
-            for (size_t k = 0; k < len; k++)
-                delete ps[k];
-            delete[] ps;
-        }
+    // get the rows name and store in vector
+    vector<string> atts=ts.getFeatures();
+	size_t len=ts.getRowSize();
+	float vals[atts.size()][len];
+    //create 2d vector for table ts as vals
+    for(size_t i=0;i<atts.size();i++){
+		vector<float> x=ts.getFeaturesData(atts[i]);
+		for(size_t j=0;j<len;j++){
+			vals[i][j]=x[j];
+		}
+	}
+    // check for max correlation every column
+    for(size_t i=0;i<atts.size();i++){
+		string f1=atts[i];
+		float max=0;
+		size_t index_max=0;
+		for(size_t j=i+1;j<atts.size();j++){
+			float p=abs(pearson(vals[i],vals[j],len));
+            //check by pearson correlation
+			if(p>max){
+				max=p;
+				index_max=j;
+			}
+		}
+        string f2=atts[index_max];
+        Point** ps=toPoints(ts.getFeaturesData(f1),ts.getFeaturesData(f2));
+        //assamption that f1 & f2 have the size column's size
+        CorrelatedInit(max,f1, f2, ps, ts);
+        
+        //delete points space:
+        for(size_t po=0;po<len;po++)
+			delete ps[po];
+		delete[] ps;
     }
-    duplicateRemove();
 }
 
 /**
@@ -131,45 +97,25 @@ void SimpleAnomalyDetector::learnNormal(const TimeSeries &ts)
  * @param ts
  * @return vector<AnomalyReport>
  */
-vector<AnomalyReport> SimpleAnomalyDetector::detect(const TimeSeries &ts)
-{
+vector<AnomalyReport> SimpleAnomalyDetector::detect(const TimeSeries &ts){
     vector<AnomalyReport> report;
     for (correlatedFeatures cl : cf)
     {
-        int index1, index2;
-        // A loop to save the corrolated index in index1(f1) and index2(f2)
-        for (int i = 0; i < ts.getVector().size(); i++)
-        {
-            if (cl.feature1 == ts.getVector().at(i).first)
-            {
-                index1 = i;
-            }
-            else if (cl.feature2 == ts.getVector().at(i).first)
-            {
-                index2 = i;
-            }
-        }
-        int timeStep = 1;
-        // A loop to run over every row with the spesific iteration (Like A-B for instance) and push the detected errors (cl.threshold)
-        for (int j = 0; j < ts.getVector().at(0).second.size(); j++)
-        {
-            Point p1(ts.getVector().at(index1).second[j], ts.getVector().at(index2).second[j]);
-            if (SimpleAnomalCheck(p1, cl))
-            {
-                report.push_back(AnomalyReport(ts.getVector().at(index1).first + "-" + ts.getVector().at(index2).first, timeStep));
-            }
-            timeStep++;
-        }
+        vector<float> x=ts.getFeaturesData(cl.feature1);
+		vector<float> y=ts.getFeaturesData(cl.feature2);
+		for(size_t i=0;i<x.size();i++){
+            //check if the linear regrese is greater then threshhold
+			if(SimpleAnomalCheck(x[i],y[i],cl)){
+				string des=cl.feature1 + "-" + cl.feature2;
+				report.push_back(AnomalyReport(des,(i+1))); //timestep from 1
+			}
+		}
     }
-    // Checker detect:
-    //  for(AnomalyReport rprt: report){
-    //  	cout<<"detect_check: "<<rprt.description<<",  timeStep:"<<rprt.timeStep<<endl;
-    //  }
     return report;
 }
 
 // check if there is anomal detection
-bool SimpleAnomalyDetector::SimpleAnomalCheck(Point p, correlatedFeatures c)
+bool SimpleAnomalyDetector::SimpleAnomalCheck(float x, float y,correlatedFeatures c)
 {
-    return (dev(p, c.lin_reg) > c.threshold);
+    return (abs(y - c.lin_reg.f(x))>c.threshold);
 }

@@ -14,7 +14,10 @@ struct correlatedFeatures
     float corrlation;
     Line lin_reg;
     float threshold;
+    //for Circle porpose
     Point *center;
+    float center_x;
+    float center_y;
 };
 
 class SimpleAnomalyDetector : public TimeSeriesAnomalyDetector
@@ -27,7 +30,9 @@ protected:
 public:
     SimpleAnomalyDetector();
     virtual ~SimpleAnomalyDetector();
+    //learn anomalies
     virtual void learnNormal(const TimeSeries &ts);
+    //detect anomalies from CSV file
     virtual vector<AnomalyReport> detect(const TimeSeries &ts);
     float getThreshold()
     {
@@ -37,11 +42,16 @@ public:
     {
         return cf;
     }
-
-    Point **toPoint(float *X, float *Y, size_t N);
-    void CorrelatedInit(float max, string f1, string f2, Point **p, int N);
-    void duplicateRemove();
-    bool SimpleAnomalCheck(Point p, correlatedFeatures c);
+    void setThreshold(float t){
+        this->threshold = t;
+    }
+// helpers:
+    //turn vectors of data fo points
+    Point **toPoints(vector<float> x, vector<float> y);
+    // initialize correlated features
+    virtual void CorrelatedInit(float max, string f1, string f2, Point **p, const TimeSeries& ts);
+    // check if data x & y are correlated
+    virtual bool SimpleAnomalCheck(float x, float y,correlatedFeatures c);
 };
 
 #endif /* SIMPLEANOMALYDETECTOR_H_ */

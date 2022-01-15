@@ -85,21 +85,6 @@ Circle trivialCircle(vector<Point> &Bdr)
     c = CircleBy2Points(Bdr[1], Bdr[2]);
     if (distance(Bdr[0], c.center) <= c.radius)
         return c;
-
-    // check if the smallest circle determined by 2 points
-    // for (int i = 0; i < 3; i++)
-    // {
-    //     for (int j = i + 1; j < 3; j++)
-    //     {
-    //         //check for circle(point[0],1), circle(point[1],2), circle(point[1],2)
-    //         Circle c = CircleBy2Points(Bdr[i], Bdr[j]);
-    //         if (CircleCheck(c, Bdr))
-    //         {
-    //             return c;
-    //         }
-    //     }
-    // }
-
     return CircleBy3Points(Bdr[0], Bdr[1], Bdr[2]);
 }
 

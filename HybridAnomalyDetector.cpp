@@ -1,137 +1,35 @@
 
 #include "HybridAnomalyDetector.h"
+#include "minCircle.h"
 
 HybridAnomalyDetector::HybridAnomalyDetector()
 {
     corrlationMin = 0.5;
 }
 
-void HybridAnomalyDetector::CorrelateCircle(float max, string f1, string f2, Point **ps, int N)
-{
-    correlatedFeatures Cpair;
-    Cpair.corrlation = max;
-    Cpair.feature1 = f1;
-    Cpair.feature2 = f2;
-    Line l = linear_reg(ps, N);
-    Cpair.lin_reg = l;
-    Circle c = findMinCircle(ps, N);
-    Cpair.threshold = c.radius * 1.1;
-
-    Point *circleCenter = new Point(c.center.x, c.center.y);
-    Cpair.center = circleCenter;
-    cf.push_back(Cpair);
-}
-
-void HybridAnomalyDetector::learnNormal(const TimeSeries &ts)
-{
-    TimeSeries t = ts;
-    size_t len = t.getVector().at(0).second.size();
-    float tempF1[len];
-    float tempF2[len];
-    correlatedFeatures Cpair;
-    int itr = t.getVector().size();
-    int N = sizeof(tempF1) / sizeof(tempF1[1]); // size of table's columns
-    while (itr != 0)
-    {
-        // for loop to run with every feature over the whole Table
-        //  if it gets the most corrolated, save it in Cpair and push cf
-        for (int i = 0; i < t.getVector().size(); i++)
-        {
-            float maxC = 0;
-            string f1;
-            string f2;
-            Point **ps;
-            for (int j = 0; j < t.getVector().size(); j++)
-            {
-                // skip on equal features check like A-A
-                if (t.getVector().at(i).first == t.getVector().at(j).first)
-                {
-                    continue;
-                }
-                // turn vector to float
-                for (int k = 0; k < len; k++)
-                {
-                    tempF1[k] = t.getVector().at(i).second[k];
-                    tempF2[k] = t.getVector().at(j).second[k];
-                }
-                if (maxC < abs(pearson(tempF1, tempF2, N)))
-                {
-                    maxC = abs(pearson(tempF1, tempF2, N));
-                    f1 = t.getVector().at(i).first;
-                    f2 = t.getVector().at(j).first;
-                    ps = toPoint(tempF1, tempF2, len);
-                }
-            }
-            if (maxC >= threshold) // check if the correaltion greater then 0.9
-                CorrelatedInit(maxC, f1, f2, ps, N);
-            else
-            { // probably between 0.5->0.9
-                CorrelateCircle(maxC, f1, f2, ps, N);
-            }
-            itr--;
-            // delete the points
-            for (size_t k = 0; k < len; k++)
-                delete ps[k];
-            delete[] ps;
-        }
+void HybridAnomalyDetector::CorrelatedInit(float max, string f1, string f2, Point **p, const TimeSeries& ts){
+    SimpleAnomalyDetector::CorrelatedInit(max,f1,f2,p,ts);
+    if(max>0.5 && max<threshold){
+        correlatedFeatures Cpair;
+        Circle c = findMinCircle(p,ts.getRowSize());
+        Cpair.threshold=c.radius*1.1;
+        Cpair.feature1 = f1;
+        Cpair.feature2 = f2;
+        Cpair.corrlation = max;
+        Point *circleCenter = new Point(c.center.x, c.center.y);
+        Cpair.center = circleCenter;
+        Cpair.center_x = c.center.x;
+        Cpair.center_y = c.center.y;
+        Cpair.lin_reg = linear_reg(p,ts.getRowSize());
+        cf.push_back(Cpair);
     }
-    duplicateRemove();
-    // Checker:
-    //  for(correlatedFeatures cl: cf){
-    //  	cout<<cl.feature1<<"  "<<cl.feature2<<endl<<"threshold: "<<cl.threshold<<endl;
-    //  }
 }
 
-vector<AnomalyReport> HybridAnomalyDetector::detect(const TimeSeries &ts)
+bool HybridAnomalyDetector::SimpleAnomalCheck(float x, float y,correlatedFeatures c)
 {
-    vector<AnomalyReport> report;
-    for (correlatedFeatures cl : cf)
-    {
-        int index1, index2;
-        // A loop to save the corrolated index in index1(f1) and index2(f2)
-        for (int i = 0; i < ts.getVector().size(); i++)
-        {
-            if (cl.feature1 == ts.getVector().at(i).first)
-            {
-                index1 = i;
-            }
-            else if (cl.feature2 == ts.getVector().at(i).first)
-            {
-                index2 = i;
-            }
-        }
-        int timeStep = 1;
-        // A loop to run over every row with the spesific iteration (Like A-B for instance) and push the detected errors (cl.threshold)
-        for (int j = 0; j < ts.getVector().at(0).second.size(); j++)
-        {
-            Point p1(ts.getVector().at(index1).second[j], ts.getVector().at(index2).second[j]); // the specific row
-            if (cl.corrlation < threshold && cl.corrlation > corrlationMin)
-            { // if correlation between 0.5->0.9, find by circle
-                if (CircleAnomalCheck(p1, cl))
-                {
-                    report.push_back(AnomalyReport(ts.getVector().at(index1).first + "-" + ts.getVector().at(index2).first, timeStep));
-                }
-            }
-            else
-            { // probably correlation above 0.9
-                if (SimpleAnomalCheck(p1, cl))
-                {
-                    report.push_back(AnomalyReport(ts.getVector().at(index1).first + "-" + ts.getVector().at(index2).first, timeStep));
-                }
-            }
-            timeStep++;
-        }
-    }
-    // Checker detect:
-    //  for(AnomalyReport rprt: report){
-    //  	cout<<"detect_check: "<<rprt.description<<",  timeStep:"<<rprt.timeStep<<endl;
-    //  }
-    return report;
-}
-
-bool HybridAnomalyDetector::CircleAnomalCheck(Point p, correlatedFeatures c)
-{
-    return (distance(p, *(c.center)) > c.threshold);
+    //override anomalCheck for hybrid use
+    return (c.corrlation>=threshold && SimpleAnomalyDetector::SimpleAnomalCheck(x,y,c)) ||
+			(c.corrlation>corrlationMin && c.corrlation<threshold && distance(Point(c.center_x,c.center_y),Point(x,y))>c.threshold);
 }
 
 HybridAnomalyDetector::~HybridAnomalyDetector()

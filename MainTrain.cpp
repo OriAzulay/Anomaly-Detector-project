@@ -1,169 +1,201 @@
 /*
- * MainTrain.cpp
+ * run2.cpp
  *
- *  Created on: 11 срхїз 2020
+ *  Created on: 8 בדצמ 2019
  *      Author: Eli
  */
 
 #include <iostream>
-#include <vector>
-#include "HybridAnomalyDetector.h"
 #include <fstream>
-#include <stdlib.h> /* srand, rand */
-#include <time.h>   /* time */
-#include <math.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netdb.h>
+#include <pthread.h>
+#include <thread>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <time.h>
+#include "Server.h"
 
 using namespace std;
 
-void generateTrainCSV(float a1, float b1, float a2, float b2, float a3, float b3)
+void writeStr(string input, int serverFD)
 {
-    ofstream out("trainFile.csv");
-    out << "A,B,C,D,E,F" << endl;
-    Line ab(a1, b1);
-    Line cd(a2, b2);
-    Line ef(a3, b3);
-    for (int i = 1; i <= 200; i++)
-    {
-        float a = rand() % 40;
-        float b = ab.f(a) - 0.03 + (rand() % 60) / 100.0f;
-        float c = rand() % 40;
-        float d = cd.f(c) - 0.03 + (rand() % 60) / 100.0f;
-        float r = -100 + rand() % 200;
-        float an = 45 - 40 + rand() % 70;
-        float e = r * cosf(3.14159f * (an) / 180);
-        float f = r * sinf(3.14159f * (an) / 180);
-        out << a << "," << b << "," << c << "," << d << "," << e << "," << f << endl;
-    }
-    out.close();
+    write(serverFD, input.c_str(), input.length());
+    write(serverFD, "\n", 1);
 }
 
-vector<AnomalyReport> anomalies;
-void generateTestCSV(float a1, float b1, float a2, float b2, float a3, float b3)
+string  readStr(int serverFD)
 {
-    ofstream out("testFile.csv");
-    out << "A,B,C,D,E,F" << endl;
-    Line ab(a1, b1);
-    Line cd(a2, b2);
-    Line ef(a3, b3);
-    for (int i = 1; i <= 200; i++)
+    string serverInput = "";
+    char c = 0;
+    read(serverFD, &c, sizeof(char));
+    while (c != '\n')
     {
-        float a = rand() % 40;
-        float b = ab.f(a) - 0.03 + (rand() % 60) / 100.0f;
-        float c = rand() % 40;
-        float d = cd.f(c) - 0.03 + (rand() % 60) / 100.0f;
-        float r = -100 + rand() % 200;
-
-        for (auto it = anomalies.begin(); it != anomalies.end(); it++)
-        {
-            if ((*it).timeStep == i)
-            {
-                if ((*it).description == "A-B")
-                    b++;
-                if ((*it).description == "C-D")
-                    d++;
-                if ((*it).description == "E-F")
-                    r = 111;
-            }
-        }
-        float an = 45 - 40 + rand() % 70;
-        float e = r * cosf(3.14159f * (an) / 180);
-        float f = r * sinf(3.14159f * (an) / 180);
-
-        out << a << "," << b << "," << c << "," << d << "," << e << "," << f << endl;
+        serverInput += c;
+        read(serverFD, &c, sizeof(char));
     }
-    out.close();
+    return serverInput;
 }
 
-void checkCorrelation(correlatedFeatures c, string f1, string f2, float a, float b)
+void readMenue(ofstream &out, int serverFD)
 {
-    if (c.feature1 == f1)
+    bool done = false;
+    while (!done)
     {
-        if (c.feature2 != f2)
-            cout << "wrong correlated feature of " << f1 << " (-10)" << endl;
-        else
+        // read string line
+        string serverInput = readStr(serverFD);
+        if (serverInput == "6.exit")
+            done = true;
+        out << serverInput << endl;
+    }
+}
+
+int initClient(int port) throw(const char *)
+{
+    int serverFD, n;
+    struct sockaddr_in serv_addr;
+    struct hostent *server;
+
+    serverFD = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverFD < 0)
+        throw "socket problem";
+
+    server = gethostbyname("localhost");
+    if (server == NULL)
+        throw "no such host";
+
+    serv_addr.sin_family = AF_INET;
+    bcopy((char *)server->h_addr, (char *)&serv_addr.sin_addr.s_addr, server->h_length);
+
+    serv_addr.sin_port = htons(port);
+    if (connect(serverFD, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0)
+        throw "connection problem";
+
+    return serverFD;
+}
+
+void clientSide1(int port, string outputFile) throw(const char *)
+{
+    int serverFD = initClient(port);
+    ofstream out(outputFile);
+    readMenue(out, serverFD);
+    out.close();
+    string input = "6";
+    writeStr(input, serverFD);
+    close(serverFD);
+    cout << "end of client 1" << endl;
+}
+
+void clientSide2(int port, string outputFile) throw(const char *)
+{
+
+    int serverFD = initClient(port);
+
+    ofstream out(outputFile);
+    ifstream in("input.txt");
+    string input = "";
+    while (input != "6")
+    {
+        readMenue(out, serverFD);
+        getline(in, input);
+        writeStr(input, serverFD);
+        if (input == "1")
         {
-            if (c.corrlation >= 0.9)
+            out << readStr(serverFD) << endl; // please upload...
+            while (input != "done")
             {
-                if (c.corrlation < 0.99)
-                    cout << f1 << "-" << f2 << " wrong correlation detected (-2)" << endl;
-                if (c.lin_reg.a < a - 0.5f || c.lin_reg.a > a + 0.5f)
-                    cout << f1 << "-" << f2 << " wrong value of line_reg.a (-4)" << endl;
-                if (c.lin_reg.b < b - 0.5f || c.lin_reg.b > b + 0.5f)
-                    cout << f1 << "-" << f2 << " wrong value of line_reg.b (-4)" << endl;
+                getline(in, input);
+                writeStr(input, serverFD);
             }
-            else
+            out << readStr(serverFD) << endl; // Upload complete
+            out << readStr(serverFD) << endl; // please upload...
+            input = "";
+            while (input != "done")
             {
-                if (c.corrlation <= 0.5)
-                    cout << f1 << "-" << f2 << " wrong correlation detected (-2)" << endl;
-                if (c.threshold > 111)
-                    cout << f1 << "-" << f2 << " wrong value of the radius (-18)" << endl;
+                getline(in, input);
+                writeStr(input, serverFD);
             }
+            out << readStr(serverFD) << endl; // Upload complete
+        }
+
+        if (input == "3")
+        {
+            out << readStr(serverFD) << endl; // Anomaly... complete
+        }
+        if (input == "5")
+        {
+            out << readStr(serverFD) << endl; // please upload...
+            while (input != "done")
+            {
+                getline(in, input);
+                writeStr(input, serverFD);
+            }
+            out << readStr(serverFD) << endl; // Upload complete
+            out << readStr(serverFD) << endl; // TPR
+            out << readStr(serverFD) << endl; // FPR
         }
     }
+    in.close();
+    out.close();
+
+    close(serverFD);
+    cout << "end of client 2" << endl;
+}
+
+size_t check(string outputFile, string expectedOutputFile)
+{
+    ifstream st(outputFile);
+    ifstream ex(expectedOutputFile);
+    size_t i = 0;
+    string lst, lex;
+    while (!ex.eof())
+    {
+        getline(st, lst);
+        getline(ex, lex);
+        if (lst.compare(lex) != 0)
+            i++;
+    }
+    st.close();
+    ex.close();
+    return i;
 }
 
 int main()
 {
-
     srand(time(NULL));
-    float a1 = 1 + rand() % 10, b1 = -50 + rand() % 100;
-    float a2 = 1 + rand() % 20, b2 = -50 + rand() % 100;
-    float a3 = 1 + rand() % 40, b3 = -50 + rand() % 100;
+    int port = 5000 + rand() % 1000;
+    string outputFile1 = "output_menu";
+    string outputFile2 = "output";
+    int x = rand() % 1000;
+    outputFile1 += to_string(x);
+    outputFile1 += ".txt";
+    outputFile2 += to_string(x);
+    outputFile2 += ".txt";
 
-    // test the learned model: (40 points)
-    // expected correlations:
-    //	A-B: y=a1*x+b1
-    //	C-D: y=a2*x+b2
-    //	E-F: y=a3*x+b3
+    try
+    {
+        AnomalyDetectionHandler adh;
+        Server server(port);
+        server.start(adh); // runs on its own thread
+        // let's run 2 clients
+        clientSide1(port, outputFile1);
+        cout<<"get here? "<<endl;
+        clientSide2(port, outputFile2);
+        server.stop(); // joins the server's thread
+    }
+    catch (const char *s)
+    {
+        cout << s << endl;
+    }
+    size_t mistakes = check(outputFile1, "expected_output_menu.txt");
+    mistakes += check(outputFile2, "expected_output.txt");
 
-    generateTrainCSV(a1, b1, a2, b2, a3, b3);
-    TimeSeries ts("trainFile.csv");
-    HybridAnomalyDetector ad;
-    ad.learnNormal(ts);
-    vector<correlatedFeatures> cf = ad.getNormalModel();
-
-    if (cf.size() != 3)
-        cout << "wrong size of correlated features (-40)" << endl;
-    else
-        for_each(cf.begin(), cf.end(), [&a1, &b1, &a2, &b2, &a3, &b3](correlatedFeatures c)
-                 {
-            checkCorrelation(c, "A", "B", a1, b1); // 10 points
-            checkCorrelation(c, "C", "D", a2, b2); // 10 points
-            checkCorrelation(c, "E", "F", a3, b3); });
-
-    // test the anomaly detector: (60 points)
-    // one simply anomaly is injected to the data
-    int anomaly1 = 5 + rand() % 90; // anomaly injected in a random time step
-    int anomaly2 = 5 + rand() % 90; // anomaly injected in a random time step
-    int anomaly3 = 5 + rand() % 90; // anomaly injected in a random time step
-
-    anomalies.push_back(AnomalyReport("A-B", anomaly1));
-    anomalies.push_back(AnomalyReport("C-D", anomaly2));
-    anomalies.push_back(AnomalyReport("E-F", anomaly3));
-
-    generateTestCSV(a1, b1, a2, b2, a3, b3);
-    TimeSeries ts2("testFile.csv");
-    vector<AnomalyReport> r = ad.detect(ts2);
-    bool detected[] = {false, false, false};
-
-    for_each(r.begin(), r.end(), [&detected](AnomalyReport ar)
-             {
-		if(ar.description==anomalies[0].description && ar.timeStep==anomalies[0].timeStep)
-			detected[0]=true;
-		if(ar.description==anomalies[1].description && ar.timeStep==anomalies[1].timeStep)
-			detected[1]=true;
-		if(ar.description==anomalies[2].description && ar.timeStep==anomalies[2].timeStep)
-			detected[2]=true; });
-
-    int falseAlarms = r.size();
-    for (int i = 0; i < 3; i++)
-        if (!detected[i])
-            cout << "an anomaly was not detected (-10)" << endl;
-        else
-            falseAlarms--;
-
-    if (falseAlarms > 0)
-        cout << "you have " << falseAlarms << " false alarms (-" << min(30, falseAlarms * 3) << ")" << endl;
+    if (mistakes > 0)
+        cout << "you have " << mistakes << " mistakes in your output (-" << (mistakes * 2) << ")" << endl;
 
     cout << "done" << endl;
     return 0;

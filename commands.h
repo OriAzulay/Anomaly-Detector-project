@@ -3,412 +3,220 @@
 #ifndef COMMANDS_H_
 #define COMMANDS_H_
 
-#include <iostream>
+#include<iostream>
 #include <string.h>
+
 #include <fstream>
 #include <vector>
+//#include "timeseries.h"
 #include "HybridAnomalyDetector.h"
-#include <sstream>
-#include <iomanip>
-#include <map>
+
 using namespace std;
 
-class
-    DefaultIO
-{
+class DefaultIO{
 public:
-    virtual string read() = 0;
-    virtual void write(string text) = 0;
-    virtual void write(float f) = 0;
-    virtual void read(float *f) = 0;
-    // optinal - func to upload file from path
-    void getFileByPath()
-    {
-        const char *path;
-        ofstream file(path);
-    }
+	virtual string read()=0;
+	virtual void write(string text)=0;
+	virtual void write(float f)=0;
+	virtual void read(float* f)=0;
+	virtual ~DefaultIO(){}
 
-    virtual ~DefaultIO() {}
+    //function to read CSV file 
+	void readFile(string fileName){
+		ofstream out(fileName);
+		string s="";
+		while((s=read())!="done\n"){
+			out<<s<<endl;
+		}
+		out.close();
+	}
 };
 
-class Command
-{
+struct fixdReport{
+	int begin;
+	int end;
+	string description;
+	bool tp;
+};
+
+//structure for saving data information 
+// like threshold, report 
+struct ReportSum{
+	float threshold;
+	vector<AnomalyReport> report;
+	vector<fixdReport> fixdRports;
+	int testFileSize;
+	ReportSum(){
+		threshold=0.9;
+		testFileSize=0;
+	}
+};
+
+
+class Command{
 protected:
-    DefaultIO *dio;
+	DefaultIO* dio;
 
 public:
-    Command(DefaultIO *dio) : dio(dio) {}
-    virtual void execute() = 0;
-    virtual string getDescription() = 0;
-    virtual ~Command() {}
+	const string description;
+	Command(DefaultIO* dio,const string description):dio(dio),description(description){}
+	virtual void execute(ReportSum* sharedState)=0;
+	virtual ~Command(){}
 };
 
-class MacroCommand : public Command
-{
-protected:
-    DefaultIO *dioM;
-
+// This command is for case 1
+class CSV_up:public Command{
 public:
-    vector<Command *> commandos;
-    float threshold;
-    bool menu;
-    vector<TimeSeries> timeseries;
-    vector<correlatedFeatures> cf; // the correlate features after learning anomalTrain.csv
-    vector<AnomalyReport> r;       // the anomal detection after detect the anomalTest.csv
-    MacroCommand(DefaultIO *dio) : Command(dio)
-    {
-        dioM = dio;
-        threshold = 0.9;
-    }
-    virtual void execute()
-    {
-        string optionN = dioM->read();
-        int i;
-        menu = true;
-        while (menu)
-        {
-            if (optionN == "1")
-            {
-                dio->write("Welcome to the Anomaly Detection Server.\nPlease choose an option:\n");
-                for (Command *c : commandos)
-                {
-                    dioM->write(c->getDescription() + "\n");
-                }
-                commandos.at(0)->execute();
-                optionN = dioM->read();
-            }
-            if (optionN == "2")
-            {
-                dio->write("Welcome to the Anomaly Detection Server.\nPlease choose an option:\n");
-                for (Command *c : commandos)
-                {
-                    dioM->write(c->getDescription() + "\n");
-                }
-                commandos.at(1)->execute();
-                optionN = dioM->read();
-            }
-            if (optionN == "3")
-            { // WRONG SIZE - (23014 INSTEAD 6 ????)
-                dio->write("Welcome to the Anomaly Detection Server.\nPlease choose an option:\n");
-                for (Command *c : commandos)
-                {
-                    dioM->write(c->getDescription() + "\n");
-                }
-                commandos.at(2)->execute();
-                optionN = dioM->read();
-            }
-            if (optionN == "4")
-            {
-                dio->write("Welcome to the Anomaly Detection Server.\nPlease choose an option:\n");
-                for (Command *c : commandos)
-                {
-                    dioM->write(c->getDescription() + "\n");
-                }
-                commandos.at(3)->execute();
-                optionN = dioM->read();
-            }
-            if (optionN == "5")
-            {
-                dio->write("Welcome to the Anomaly Detection Server.\nPlease choose an option:\n");
-                for (Command *c : commandos)
-                {
-                    dioM->write(c->getDescription() + "\n");
-                }
-                commandos.at(4)->execute();
-                optionN = dioM->read();
-            }
-            if (optionN == "6")
-            {
-                dio->write("Welcome to the Anomaly Detection Server.\nPlease choose an option:\n");
-                for (Command *c : commandos)
-                {
-                    dioM->write(c->getDescription() + "\n");
-                }
-                menu = false;
-            }
-        }
-    }
-    virtual string getDescription()
-    {
-        return "menu";
-    }
-    void setCommands(Command *a, Command *b, Command *c, Command *d, Command *e, Command *f)
-    {
-        commandos = {a, b, c, d, e, f};
-    }
-    virtual ~MacroCommand() {}
+	CSV_up(DefaultIO* dio):Command(dio,"upload a time series csv file"){}
+    //execut and write CSV file into input
+	virtual void execute(ReportSum* rs){
+		dio->write("Please upload your local train CSV file.\n");
+		dio->readFile("anomalyTrain.csv");
+		dio->write("Upload complete.\nPlease upload your local test CSV file.\n");
+		dio->readFile("anomalyTest.csv");
+		dio->write("Upload complete.\n");
+	}
 };
 
-class Command_1 : public Command
-{ // get from the user txt and upload csv files
-    DefaultIO *dio1;
-
+//This command is for case 2
+class algoSettings:public Command{
 public:
-    MacroCommand *m;
-    string description;
-    Command_1(DefaultIO *dio, MacroCommand *macro) : Command(dio)
-    {
-        description = "1.upload a time series csv file";
-        dio1 = dio;
-        m = macro;
-    }
-    virtual string getDescription()
-    {
-        return description;
-    }
-    virtual void execute() override
-    {
-        int itr = 2; // 2 uploads, first train, second test
-        string fileName = "Train";
-        string name = "train";
-        while (itr != 0)
-        {
-            dio1->write("Please upload your local " + name + " CSV file.\n");
-            ofstream myfile;
-            myfile.open("anomaly" + fileName + ".csv");
-            string lines = dio1->read();
-            while (lines != "done")
-            {
-                myfile << lines + "\n";
-                lines = dio1->read();
-            }
-            itr--;
-            myfile.close();
-            fileName = "Test";
-            dio1->write("Upload complete.\n");
-            name = "test";
-            myfile.close();
-        }
-        m->timeseries.push_back(TimeSeries("anomalyTrain.csv")); // insert macroCommand train timeseries to learn
-        m->timeseries.push_back(TimeSeries("anomalyTest.csv"));  // insert macroCommand test timeseries to detect
-    }
-    ~Command_1() {}
+	algoSettings(DefaultIO* dio):Command(dio,"algorithm settings"){}
+	virtual void execute(ReportSum* rs){
+		bool isFine=false;
+		while(!isFine){
+			dio->write("The current correlation threshold is ");
+			dio->write(rs->threshold);
+			dio->write("\nType a new threshold\n");
+			float f;
+			dio->read(&f);
+            //if user type another threshold
+			if(f>0 && f<=1){
+				rs->threshold=f;
+				isFine=true;
+			}
+			else
+				dio->write("please choose a value between 0 and 1.\n");
+		}
+	}
 };
-class Command_2 : public Command
-{ // present the threshold that we or the user configure
-    DefaultIO *dio2;
 
+//This command is for case 3:
+class detectAn:public Command{
 public:
-    MacroCommand *m;
-    string description;
-    Command_2(DefaultIO *dio, MacroCommand *macro) : Command(dio)
-    {
-        description = "2.algorithm settings";
-        dio2 = dio;
-        m = macro;
-    }
-    virtual string getDescription()
-    {
-        return description;
-    }
-    virtual void execute() override
-    {
-        bool opt = false;
-        float thr;
-        while (!opt)
-        {
-            stringstream stream; // turn float to string
-            stream << m->threshold;
-            string t = stream.str();
-            dio2->write("The current correlation threshold is " + t + "\n"
-                                                                      "Type a new threshold\n");
-            string g = dio2->read();
-            stringstream s(g);
-            s >> thr;
-            if (thr > 0 && thr < 1)
-            { // if the user typed currect threshold, save it
-                m->threshold = thr;
-                opt = true;
-            }
-            else
-            {
-                dio2->write("please choose a value between 0 and 1.\n");
-            }
-        }
-    }
-    ~Command_2() {}
-};
-class Command_3 : public Command
-{ // from the given timesetries, find anomal correaltion to cf, and detect testCSV into r
-    DefaultIO *dio3;
+	detectAn(DefaultIO* dio):Command(dio,"detect anomalies"){}
 
+	virtual void execute(ReportSum* rs){
+		TimeSeries train("anomalyTrain.csv");
+		TimeSeries test("anomalyTest.csv");
+		rs->testFileSize = test.getRowSize();
+		HybridAnomalyDetector ad;
+		ad.setThreshold(rs->threshold);
+		ad.learnNormal(train);
+        //detect anomalies
+		rs->report = ad.detect(test);
+		fixdReport f;
+		f.begin=0;
+		f.end=0;
+		f.description="";
+		f.tp=false;
+        // for - each loop to push the fixed reports that got from detect
+		for_each(rs->report.begin(),rs->report.end(),[&f,rs](AnomalyReport& ar){
+            // if there is duplicated, iteration ++
+			if(ar.timeStep==f.end+1 && ar.description==f.description)
+				f.end++;
+			else{
+				rs->fixdRports.push_back(f);
+				f.begin=ar.timeStep;
+				f.end=f.begin;
+				f.description=ar.description;
+			}
+		});
+		rs->fixdRports.push_back(f);
+		rs->fixdRports.erase(rs->fixdRports.begin());
+
+		dio->write("anomaly detection complete.\n");
+	}
+};
+
+//This command is for case 4
+class dispResult:public Command{
 public:
-    MacroCommand *m;
-    string description;
-    Command_3(DefaultIO *dio, MacroCommand *macro) : Command(dio)
-    {
-        description = "3.detect anomalies";
-        dio3 = dio;
-        m = macro;
-    }
-    virtual string getDescription()
-    {
-        return description;
-    }
-    virtual void execute()
-    {
-        HybridAnomalyDetector ad;
-        ad.learnNormal(m->timeseries.at(0));
-        m->cf = ad.getNormalModel();
-        m->r = ad.detect(m->timeseries.at(1));
-        dio3->write("anomaly detection complete.\n");
-    }
-    ~Command_3() {}
+	dispResult(DefaultIO* dio):Command(dio,"display results"){}
+	virtual void execute(ReportSum* rs){
+        //for-each loop for display results in input
+		for_each(rs->report.begin(),rs->report.end(),[this](AnomalyReport& ar){
+			dio->write(ar.timeStep);
+			dio->write("\t"+ar.description+"\n");
+		});
+		dio->write("Done.\n");
+	}
 };
-class Command_4 : public Command
-{ // present the anomal detections by timesteps and descreption
-    DefaultIO *dio4;
 
+
+class UploadAnom:public Command{
 public:
-    MacroCommand *m;
-    string description;
-    Command_4(DefaultIO *dio, MacroCommand *macro) : Command(dio)
-    {
-        description = "4.display results";
-        dio4 = dio;
-        m = macro;
-    }
-    virtual string getDescription()
-    {
-        return description;
-    }
-    virtual void execute()
-    {
-        for (AnomalyReport a : m->r)
-        {
-            stringstream stream;
-            stream << a.timeStep;
-            string t = stream.str();
-            dio4->write(t + "	 " + a.description + "\n");
-        }
-        dio4->write("Done.\n");
-    }
-    ~Command_4() {}
-};
-class Command_5 : public Command
-{
-    DefaultIO *dio5;
+	UploadAnom(DefaultIO* dio):Command(dio,"upload anomalies and analyze results"){}
+    // if there is true positive, before execute to initialize TP
+	bool crossS(int as,int ae,int bs, int be){
+		return (ae>=bs && be>=as);
+	}
+	bool isTP(int st, int end,ReportSum* rs){
+		for(size_t i=0;i<rs->fixdRports.size();i++){
+			fixdReport fr=rs->fixdRports[i];
+			if(crossS(st,end,fr.begin,fr.end)){
+				rs->fixdRports[i].tp=true;
+				return true;
+			}
+		}
+		return false;
+	}
 
+	virtual void execute(ReportSum* rs){
+		
+		for(size_t i=0;i<rs->fixdRports.size();i++){
+			rs->fixdRports[i].tp=false;
+		}
+		
+		dio->write("Please upload your local anomalies file.\n");
+		string s="";
+		float TP=0,sum=0,P=0;
+		while((s=dio->read())!="done\n"){
+			size_t t=0;
+			for(;s[t]!=',';t++);
+			string st=s.substr(0,t);
+			string en=s.substr(t+1,s.length());
+			int start = stoi(st);
+			int end = stoi(en);
+			if(isTP(start,end,rs))
+				TP++;
+			sum+=end+1-start;
+			P++;
+		}
+		dio->write("Upload complete.\n");
+		float FP=0;
+		for(size_t i=0;i<rs->fixdRports.size();i++)
+			if(!rs->fixdRports[i].tp)
+				FP++;
+        //based on TP,FP calculations
+		float N=rs->testFileSize - sum;
+		float tp_r=((int)(1000.0*TP/P))/1000.0f;
+		float fp_r=((int)(1000.0*FP/N))/1000.0f;
+		dio->write("True Positive Rate: ");
+		dio->write(tp_r);
+		dio->write("\nFalse Positive Rate: ");
+		dio->write(fp_r);
+		dio->write("\n");
+	}
+};
+
+// for future implemenations
+class Exit:public Command{
 public:
-    MacroCommand *m;
-    string description;
-    Command_5(DefaultIO *dio, MacroCommand *macro) : Command(dio)
-    {
-        description = "5.upload anomalies and analyze results";
-        dio5 = dio;
-        m = macro;
-    }
-    virtual string getDescription()
-    {
-        return description;
-    }
-    virtual void execute()
-    {
-        dio5->write("Please upload your local anomalies file.\n");
-        map<string, vector<int>> T;
-        string temp;
-        vector<int> I;
-        I.push_back(m->r[0].timeStep);
-        for (int k = 1; k < m->r.size(); k++)
-        {
-            if (m->r[k - 1].description == m->r[k].description && (m->r[k - 1].timeStep == m->r[k].timeStep - 1))
-            {
-                temp = m->r[k - 1].description;
-                I.push_back(m->r[k].timeStep);
-                T[temp] = I;
-            }
-            else
-            {
-                I.clear();
-                I.push_back(m->r[k].timeStep);
-                temp = m->r[k].description;
-                T[temp] = I;
-            }
-        }
-        bool op = true;
-        float TP = 0;
-        string report = dio5->read();
-        float P = 0;
-        int numberOfReports = 0;
-        while (op)
-        {
-            P++;
-            vector<int> vect;
-            stringstream ss(report);
-            for (int i; ss >> i;)
-            { // get the min and max by vector
-                vect.push_back(i);
-                if (ss.peek() == ',')
-                    ss.ignore();
-            }
-            numberOfReports += (vect.at(1) - vect.at(0));
-            numberOfReports++;
-            int cout = 0;
-            int falseCount = 0;
-            for (pair<string, vector<int>> x : T)
-            {
-                for (int j = 0; j < x.second.size(); j++)
-                {
-                    if (x.second[j] >= vect[0] && x.second[j] <= vect[1])
-                    {
-                        cout++;
-                    }
-                }
-            }
-            if (cout > 0)
-            {
-                TP++;
-            }
-            report = dio5->read();
-            if (report == "done")
-            {
-                op = false;
-            }
-        }
-        float TruePositiveRate = (TP / P);
-        TruePositiveRate = floor(TruePositiveRate * 1000);
-        TruePositiveRate = TruePositiveRate / 1000;
-        float FP = (T.size() - TP);
-        int N = (m->timeseries.at(0).getVector().at(0).second.size()) - (numberOfReports);
-        float FalseAlarmRate = FP / N;
-        FalseAlarmRate = floor(FalseAlarmRate * 1000);
-        FalseAlarmRate = FalseAlarmRate / 1000;
-        stringstream stream;
-        stream << setprecision(2) << TruePositiveRate;
-        string t = stream.str();
-        stringstream sstream;
-        sstream << setprecision(2) << FalseAlarmRate;
-        string f = sstream.str();
-        dio5->write("Upload complete.\n");
-        dio5->write("True Positive Rate: " + t + "\n");
-        dio5->write("False Positive Rate: " + f + "\n");
-        // TODO - HOW TO ROUND 3 DIGITS AFTER THE DOT (0.015 AND NOT 0.01522..)
-    }
-
-    ~Command_5() {}
+	Exit(DefaultIO* dio):Command(dio,"exit"){}
+	virtual void execute(ReportSum* sharedState){
+	}
 };
-class Command_6 : public Command
-{
-    DefaultIO *dio6;
 
-public:
-    MacroCommand *m;
-    string description;
-    Command_6(DefaultIO *dio, MacroCommand macro) : Command(dio)
-    {
-        description = "6.exit";
-        dio6 = dio;
-        m = &macro;
-    }
-    virtual string getDescription()
-    {
-        return description;
-    }
-    virtual void execute()
-    {
-        m->menu = false;
-    }
-    ~Command_6() {}
-};
 
 #endif /* COMMANDS_H_ */
